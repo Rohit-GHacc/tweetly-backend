@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import userRoute from './routes/userRoute.js';
 import tweetRoute from './routes/tweetRoute.js';
 import cors from 'cors';
+import isAuthenticated from './config/auth.js';
 
 config({
     path: '.env'
@@ -43,8 +44,8 @@ app.use(
 app.use(cookieParser());
 
 // API Routes
-app.use('/api/v1/user', userRoute);
-app.use('/api/v1/tweet', tweetRoute);
+app.use('/api/v1/user',isAuthenticated, userRoute);
+app.use('/api/v1/tweet',isAuthenticated, tweetRoute);
 
 console.log('Server reached after cookieParser middleware');
 
