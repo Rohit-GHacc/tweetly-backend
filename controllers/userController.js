@@ -54,7 +54,7 @@ export const Login = async (req, res) => {
             return res.status(401).json({
                 message: "All fields are required.",
                 success: false,
-                
+
             })
         }
         const user = await User.findOne({ email });
@@ -75,10 +75,16 @@ export const Login = async (req, res) => {
             userId: user._id
         }
         const token = jwt.sign(tokenData, process.env.JWT_TOKEN_SECRET, { expiresIn: "1d" })
-        return res.status(201).cookie("token", token, { expiresIn: "1d", httpOnly: true }).json({
+        return res.status(201)
+        .cookie("token", token, { 
+            expiresIn: "1d", 
+            httpOnly: true,  
+            secure: process.env.NODE_ENV === "production"})
+        .json({
             message: `Welcome back ${user.name}`,
             success: true,
-            user
+            user,
+
         })
     } catch (error) {
         console.log(error)
@@ -101,7 +107,7 @@ export const bookmarks = async (req, res) => {
         if (user.bookmarks.includes(tweetId)) {
             // remove bookmark
             await User.findByIdAndUpdate(loggedInUserId, { $pull: { bookmarks: tweetId } })
-            await tweet.updateOne({$pull: {bookmarks: loggedInUserId}})
+            await tweet.updateOne({ $pull: { bookmarks: loggedInUserId } })
             return res.status(200).json({
                 message: "Removed from bookmarks",
                 success: true
@@ -110,7 +116,7 @@ export const bookmarks = async (req, res) => {
         else {
             // add bookmark
             await User.findByIdAndUpdate(loggedInUserId, { $push: { bookmarks: tweetId } })
-            await tweet.updateOne({$push: {bookmarks: loggedInUserId}})
+            await tweet.updateOne({ $push: { bookmarks: loggedInUserId } })
             return res.status(200).json({
                 message: "saved to bookmarks",
                 success: true
@@ -163,7 +169,7 @@ export const follow = async (req, res) => {
             await User.updateOne(follower, { $push: { following: userToFollowId } })
             await User.updateOne(userToFollow, { $push: { followers: followerId } })
         }
-        else{
+        else {
             return res.status(400).json({
                 message: `User already followed to ${userToFollow.name}`
             })
@@ -176,21 +182,21 @@ export const follow = async (req, res) => {
     }
 }
 
-export const unfollow = async(req,res)=>{
+export const unfollow = async (req, res) => {
     try {
         const loggedInUserId = req.body.id;
         const unfollowUserId = req.params.id;
         const loggedInUser = await User.findById(loggedInUserId)
         const unfollowUser = await User.findById(unfollowUserId)
-        if(loggedInUser.following.includes(unfollowUserId)){
-            await loggedInUser.updateOne({$pull:{following: unfollowUserId}})
-            await unfollowUser.updateOne({$pull:{followers: loggedInUserId}});
+        if (loggedInUser.following.includes(unfollowUserId)) {
+            await loggedInUser.updateOne({ $pull: { following: unfollowUserId } })
+            await unfollowUser.updateOne({ $pull: { followers: loggedInUserId } });
             return res.status(200).json({
-                message:`${loggedInUser.name} unfollowed ${unfollowUser.name}`,
+                message: `${loggedInUser.name} unfollowed ${unfollowUser.name}`,
                 success: true
             })
         }
-        else{
+        else {
             return res.status(400).json({
                 message: `You do not follow ${unfollowUser.name}`
             })
