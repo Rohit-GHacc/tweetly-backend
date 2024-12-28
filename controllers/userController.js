@@ -57,7 +57,7 @@ export const Login = async (req, res) => {
 
             })
         }
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email }).lean();
         if (!user) {
             return res.status(401).json({
                 message: "Incorrect email or password",
@@ -77,7 +77,7 @@ export const Login = async (req, res) => {
         const token = jwt.sign(tokenData, process.env.JWT_TOKEN_SECRET, { expiresIn: "1d" })
         return res.status(201)
         .cookie("token", token, { 
-            expiresIn: "1d", 
+            expires: new Date(Date.now() + 21600000), 
             httpOnly: true,  
             // secure: process.env.NODE_ENV === "production"
             })
@@ -89,6 +89,10 @@ export const Login = async (req, res) => {
         })
     } catch (error) {
         console.log(error)
+        return res.status(500).json({
+            message: "internal server error",
+            success:false
+        })
     }
 }
 
