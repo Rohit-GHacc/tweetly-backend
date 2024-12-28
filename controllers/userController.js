@@ -77,7 +77,7 @@ export const Login = async (req, res) => {
         const token = jwt.sign(tokenData, process.env.JWT_TOKEN_SECRET, { expiresIn: "1d" })
         res.cookie("token",token,{
             expires: new Date(Date.now() + 300 * 60  * 60 * 1000),
-            maxAge: accessTokenExpire * 60 * 60 * 1000,
+            maxAge: 300 * 60 * 60 * 1000,
             httpOnly: true,
             sameSite: "none",
             secure:true,
