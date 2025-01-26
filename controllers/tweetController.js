@@ -50,15 +50,19 @@ export const likeOrDislikeTweet = async (req, res) => {
         //fir check krenge agr wo user already like list me h toh mtlb dislike kia h
         //pehle se nhi h toh like kia h
         if (tweet.like.includes(loggedInUserId)) {
-            // dislike
-            await Tweet.findByIdAndUpdate(tweetId, { $pull: { like: loggedInUserId } })
+            await Tweet.findByIdAndUpdate(tweetId, 
+                { $pull: { like: loggedInUserId } },
+                { new: true }
+            );
             return res.status(200).json({
                 message: "User disliked"
             })
         }
         else {
-            //like
-            await Tweet.findByIdAndUpdate(tweetId, { $push: { like: loggedInUserId } })
+            await Tweet.findByIdAndUpdate(tweetId,
+                { $push: { like: loggedInUserId } },
+                { new: true }
+            );
             return res.status(200).json({
                 message: "User liked"
             })
@@ -75,32 +79,41 @@ export const getTweets = async (req, res) => {
         const user = await User.findById(userId);
         const filter = req.query.filter;
 
+        // Limit the number of tweets per user to improve performance
         const followingTweets = await Promise.all(user.following.map((otherUsersId) => {
             return Tweet.find({ userId: otherUsersId })
-        }))
+                .sort({ createdAt: -1 })
+                .limit(10)
+                .lean() // Use lean() for better performance
+        }));
 
-        if (filter === 'following')
+        if (filter === 'following') {
             return res.status(200).json({
                 tweets: [].concat(...followingTweets)
             })
-        else {
-
-            const loggedInUserTweets = await Tweet.find({ userId });
-            return res.status(200).json({
-                tweets: loggedInUserTweets.concat(...followingTweets)
-            })
         }
+
+        const loggedInUserTweets = await Tweet.find({ userId })
+            .sort({ createdAt: -1 })
+            .limit(10)
+            .lean();
+
+        return res.status(200).json({
+            tweets: loggedInUserTweets.concat(...followingTweets)
+        })
 
     } catch (error) {
         console.log(error)
     }
 }
-
 export const getFollowingTweets = async (req, res) => {
     try {
-        const user = await User.findById(req.params.id);
+        const user = await User.findById(req.params.id).select('following');
         const followingTweets = await Promise.all(user.following.map((followingUserId) => {
             return Tweet.find({ userId: followingUserId })
+                .sort({ createdAt: 1 }) // Sort by oldest first, latest last
+                .limit(10)
+                .lean()
         }))
 
     } catch (error) {

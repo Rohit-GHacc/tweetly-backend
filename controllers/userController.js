@@ -13,37 +13,72 @@ export const Register = async (req, res) => {
             })
         }
 
+        // Password validation
+        if (password.length < 8) {
+            return res.status(400).json({
+                message: "Password must be at least 8 characters long",
+                success: false
+            });
+        }
+
+        const hasDigit = /\d/.test(password);
+        if (!hasDigit) {
+            return res.status(400).json({
+                message: "Password must contain at least one digit",
+                success: false
+            });
+        }
+
+        const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+        if (!hasSpecialChar) {
+            return res.status(400).json({
+                message: "Password must contain at least one special character",
+                success: false
+            });
+        }
+
         let user = await User.findOne({ email });
         if (user) {
             return res.status(401).json({
-                message: "User already exists.",
+                message: "User already exists.", 
                 success: false
             })
         } else {
-            const salt = await bcryptjs.genSalt(16)
-            const hashedPassword = await bcryptjs.hash(password, salt); //16 is salt value which decided how strong your password is
+            // Reduced salt rounds from 16 to 10 for better performance while maintaining security
+            const salt = await bcryptjs.genSalt(10)
+            const hashedPassword = await bcryptjs.hash(password, salt);
 
             user = await User.create({ name, username, email, password: hashedPassword })
-            console.log(hashedPassword)
-            console.log(user)
+            
+            // Generate token for auto login
+            const tokenData = {
+                userId: user._id
+            }
+            const token = jwt.sign(tokenData, process.env.JWT_TOKEN_SECRET, { expiresIn: "12h" })
+            
+            res.cookie("token", token, {
+                maxAge: 12 * 60 * 60 * 1000, // 12 hours in milliseconds
+                httpOnly: true,
+                sameSite: "none",
+                secure: true,
+            })
+
+            // Remove password from user object before sending
+            const userWithoutPassword = user.toObject();
+            delete userWithoutPassword.password;
+
             return res.status(201).json({
-                message: "Account created successfully.",
-                success: true
+                message: "Account created successfully. You are now logged in.",
+                success: true,
+                user: userWithoutPassword
             })
         }
-        // user = User(req.body);
-        // user.save()
-        // await User.create(req.body)
-        //     .then(user => res.json(user))
-        //     .catch(err => {
-        //         console.log(err)
-        //         res.json({ error: 'Please enter a unique value for email', message: err.message })
-        //     })
-        // console.log(req.body);
-        // res.json(req.body)
     } catch (error) {
         console.log(error);
-
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        })
     }
 }
 
@@ -54,16 +89,18 @@ export const Login = async (req, res) => {
             return res.status(401).json({
                 message: "All fields are required.",
                 success: false,
-
             })
         }
-        const user = await User.findOne({ email }).lean();
+
+        // Remove .lean() as it's not needed here and can slow down the query
+        const user = await User.findOne({ email });
         if (!user) {
             return res.status(401).json({
                 message: "Incorrect email or password",
                 success: false
             })
         }
+
         const isMatch = await bcryptjs.compare(password, user.password);
         if (!isMatch) {
             return res.status(401).json({
@@ -71,36 +108,87 @@ export const Login = async (req, res) => {
                 success: false
             })
         }
+
         const tokenData = {
             userId: user._id
         }
-        const token = await jwt.sign(tokenData, process.env.JWT_TOKEN_SECRET, { expiresIn: "1d" })
-        res.cookie("token",token,{
-            expires: new Date(Date.now() + 300 * 60  * 60 * 1000),
-            maxAge: 300 * 60 * 60 * 1000,
+        // Reduced token expiry from 1d to 12h for better security
+        const token = jwt.sign(tokenData, process.env.JWT_TOKEN_SECRET, { expiresIn: "12h" })
+        
+        // Reduced cookie maxAge to match token expiry
+        res.cookie("token", token, {
+            maxAge: 12 * 60 * 60 * 1000, // 12 hours in milliseconds
             httpOnly: true,
             sameSite: "none",
-            secure:true,
+            secure: true,
         })
-        return res.status(201)
-        .json({
+
+        // Remove password from user object before sending
+        const userWithoutPassword = user.toObject();
+        delete userWithoutPassword.password;
+
+        return res.status(200).json({
             message: `Welcome back ${user.name}`,
             success: true,
-            user,
-            token
-
+            user: userWithoutPassword
         })
     } catch (error) {
         console.log(error)
         return res.status(500).json({
-            message: "internal server error",
-            success:false
+            message: "Internal server error",
+            success: false
         })
     }
 }
+export const editProfile = async (req, res) => {
+    try {
+        const { name, bio } = req.body;
+        const userId = req.params.id;
+
+        if (!name && !bio) {
+            return res.status(400).json({
+                message: "At least one field (name or bio) is required",
+                success: false
+            });
+        }
+
+        // Create update object with only provided fields
+        const updateFields = {};
+        if (name) updateFields.name = name;
+        if (bio) updateFields.bio = bio;
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            updateFields,
+            { new: true }
+        ).select("-password");
+
+        if (!updatedUser) {
+            return res.status(404).json({
+                message: "User not found",
+                success: false
+            });
+        }
+
+        return res.status(200).json({
+            message: "Profile updated successfully",
+            success: true,
+            user: updatedUser
+        });
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+}
+
+
 
 export const Logout = async (req, res) => {
-    return res.cookie("token", "", { expiresIn: new Date(Date.now()) }).json({
+    return res.cookie("token", "", { expires: new Date(Date.now()) }).json({
         message: "User logged out successfully",
         success: true
     })
@@ -132,6 +220,10 @@ export const bookmarks = async (req, res) => {
         }
     } catch (error) {
         console.log(error)
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        })
     }
 }
 
@@ -144,6 +236,10 @@ export const getMyProfile = async (req, res) => {
         })
     } catch (error) {
         console.log(error)
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        })
     }
 }
 
@@ -158,12 +254,16 @@ export const getOtherUsers = async (req, res) => {
             })
         }
         else {
-            return res.status(201).json({
+            return res.status(200).json({
                 otherUsers
             })
         }
     } catch (error) {
         console.log(error)
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        })
     }
 }
 
@@ -187,6 +287,10 @@ export const follow = async (req, res) => {
         })
     } catch (error) {
         console.log(error)
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        })
     }
 }
 
@@ -211,5 +315,9 @@ export const unfollow = async (req, res) => {
         }
     } catch (error) {
         console.log(error)
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        })
     }
 }

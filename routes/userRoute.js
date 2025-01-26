@@ -3,17 +3,19 @@ import { bookmarks, follow, getMyProfile, getOtherUsers, Login, Logout, Register
 import isAuthenticated from "../config/auth.js";
 import upload from "../middlewares/multer.js";
 import { User } from "../models/userSchema.js";
+import { editProfile } from "../controllers/userController.js";
 
 const router = Router();
 
-router.post('/register',Register);
-router.post('/login',Login);
-router.get('/logout',Logout)
-router.put('/bookmark/:id',isAuthenticated,bookmarks)
-router.get('/profile/:id',isAuthenticated,getMyProfile)
-router.get('/otherusers/:id',isAuthenticated,getOtherUsers)
-router.put('/follow/:id',isAuthenticated,follow)
-router.put('/unfollow/:id',isAuthenticated,unfollow)
+router.post('/register', Register);
+router.post('/login', Login);
+router.get('/logout', isAuthenticated, Logout);
+router.put('/bookmark/:id', isAuthenticated, bookmarks)
+router.get('/profile/:id', isAuthenticated, getMyProfile)
+router.get('/otherusers/:id', isAuthenticated, getOtherUsers)
+router.put('/follow/:id', isAuthenticated, follow)
+router.put('/unfollow/:id', isAuthenticated, unfollow)
+router.put('/edit-profile/:id', isAuthenticated, editProfile)
 router.post('/upload-profile-image/:id', upload.single('profileImage'), async (req, res) => {
     try {
         // const userId = req.params.id;
